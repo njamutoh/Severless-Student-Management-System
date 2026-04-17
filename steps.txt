@@ -1,0 +1,72 @@
+Create a dynamodb table (table name(studentData) and partition key(studentid) string type must same as write in code)
+create iam role for lambda to dynamodb full access
+-----------------------------------------------------------
+create lambda function-1:
+runtime > python 3.12
+change default execution role > use existing role > lambda dynamodb full access
+create function
+paste code in lambda from "get students.py" and deploy
+------------------------------------------------------------
+create lambda function-2:
+runtime > python 3.12
+change default execution role > use existing role > lambda dynamodb full access
+create function
+paste code in lambda from "insertstudentdata.py" and deploy
+-----------------------------------------------------------
+go to api gateway click on "build" from rest api
+api name > anything
+api endpoint type > edge optimized > create api
+
+click on create method:
+method type > get
+integration type > lambda
+lambda function > choose get lambda function(function-1) > create method
+
+click on create method:
+method type > post
+integration type > lambda
+lambda function > choose pos lambda function(function-2) > create method
+
+go to resource section and enable CORS
+click on deploy api
+copy invoke url and paste it in api section in script.js file
+
+
+Create an s3 bucket and upload index.html and scripts.js file
+acl disabled and block public access
+write s3 bucket policy for get object
+enable static website hosting
+
+CORS:
+[
+    {
+        "AllowedHeaders": [
+            "*"
+        ],
+        "AllowedMethods": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "HEAD"
+        ],
+        "AllowedOrigins": [
+            "*"
+        ],
+        "ExposeHeaders": [
+            "ETag"
+        ],
+        "MaxAgeSeconds": 3000
+    }
+]
+----------------------
+create cloudfront distribution:
+default root object > index.html
+make bucket private and update cloudfront policy in bucket permissions
+
+
+
+
+
+
+

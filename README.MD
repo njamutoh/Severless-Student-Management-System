@@ -100,112 +100,114 @@ infra/
   variables.tf
   waf.tf
 
-The application code lives separately from the Terraform code. The infra/ folder provisions the AWS infrastructure, while the application folder contains the Lambda source files and frontend assets.
+The application code lives separately from the Terraform code. The `infra/` folder provisions the AWS infrastructure, while the application folder contains the Lambda source files and frontend assets.
 
-What the Application Does
+## What the Application Does
 
 The application supports two core actions:
 
-Insert student data
-Retrieve student records
+- Insert student data
+- Retrieve student records
 
 The frontend provides a simple form and table-based interface. On deployment, Terraform uploads the frontend files to S3 and injects the live API Gateway URL into the deployed JavaScript so the application points to the correct backend endpoint automatically.
 
-Backend Logic
+## Backend Logic
 
 Two Lambda functions power the backend:
 
-getStudents.py scans the DynamoDB table and returns stored records
-insertStudentData.py accepts a request body and stores a student record
+- `getStudents.py` scans the DynamoDB table and returns stored records
+- `insertStudentData.py` accepts a request body and stores a student record
 
 Both Lambda functions use the same IAM execution role with permissions scoped to DynamoDB access and CloudWatch logging.
 
-Security and Delivery Design
+## Security and Delivery Design
 
 I wanted the frontend bucket to remain private rather than exposing it as a public S3 website. To achieve that:
 
-S3 public access is blocked
-CloudFront accesses S3 through Origin Access Control (OAC)
-the bucket policy allows only the CloudFront distribution to read the frontend objects
+- S3 public access is blocked
+- CloudFront accesses S3 through Origin Access Control (OAC)
+- the bucket policy allows only the CloudFront distribution to read the frontend objects
 
 For public access and delivery:
 
-Route 53 provides DNS records
-ACM issues and validates the TLS certificate
-CloudFront handles HTTPS termination
-WAF applies the AWS managed common rule set at the edge
+- Route 53 provides DNS records
+- ACM issues and validates the TLS certificate
+- CloudFront handles HTTPS termination
+- WAF applies the AWS managed common rule set at the edge
 
 This results in a cleaner and more production-oriented setup than a public website bucket.
 
-Why This Architecture Made Sense
+## Why This Architecture Made Sense
 
 This architecture fit the client’s needs because it removed the operational burden of:
 
-provisioning EC2 instances
-patching servers
-maintaining a traditional backend host
-running a self-managed relational database for a small internal application
+- provisioning EC2 instances
+- patching servers
+- maintaining a traditional backend host
+- running a self-managed relational database for a small internal application
 
 Instead, the application uses managed services that are easier to scale, automate, and secure for a use case like student registration and record lookup.
 
-Deployment Notes
+## Deployment Notes
 
 A few practical deployment details mattered in this implementation:
 
-Lambda functions are deployed as zip artifacts
-frontend files must be uploaded to S3 for CloudFront to serve them
-the frontend needs the real API Gateway invoke URL after deployment
-the actual S3 bucket name comes from frontend_bucket_name, not the Terraform resource label
+- Lambda functions are deployed as zip artifacts
+- frontend files must be uploaded to S3 for CloudFront to serve them
+- the frontend needs the real API Gateway invoke URL after deployment
+- the actual S3 bucket name comes from `frontend_bucket_name`, not the Terraform resource label
 
-One issue encountered during deployment was a CloudFront AccessDenied response. The root cause was not simply permissions; the S3 bucket was private and also empty, so CloudFront had no index.html or scripts.js object to serve. Uploading the frontend assets through Terraform resolved that issue.
+One issue encountered during deployment was a CloudFront `AccessDenied` response. The root cause was not simply permissions; the S3 bucket was private and also empty, so CloudFront had no `index.html` or `scripts.js` object to serve. Uploading the frontend assets through Terraform resolved that issue.
 
-Challenges I Encountered and How I Resolved Them
-1. Lambda zip artifacts were missing
+## Challenges I Encountered and How I Resolved Them
 
-Terraform expected deployment packages for both Lambda functions, but only the Python source files existed initially. The fix was to create zip packages alongside the .py files and use those as the Lambda deployment artifacts while keeping the source code in the repository.
+### 1. Lambda zip artifacts were missing
 
-2. The initial API design was heavier than needed
+Terraform expected deployment packages for both Lambda functions, but only the Python source files existed initially. The fix was to create zip packages alongside the `.py` files and use those as the Lambda deployment artifacts while keeping the source code in the repository.
+
+### 2. The initial API design was heavier than needed
 
 The project originally leaned toward a more verbose REST-style API structure. After reviewing the actual use case, I simplified the backend to API Gateway HTTP API, which reduced complexity and made routing and CORS management more straightforward for this two-route application.
 
-3. There was confusion about where the API endpoint belonged
+### 3. There was confusion about where the API endpoint belonged
 
 At first, it seemed like the API URL might need to be manually managed in multiple places. Reviewing the request flow made it clear that the public API endpoint belongs to the frontend, while Lambda only needs internal values like the DynamoDB table name. I resolved this by having Terraform inject the real API URL into the deployed frontend script.
 
-4. CloudFront returned AccessDenied
+### 4. CloudFront returned AccessDenied
 
-The frontend was initially inaccessible through the custom domain. Investigation showed that the bucket was private as intended, but the real problem was that there were no frontend objects uploaded for CloudFront to fetch. Uploading index.html and scripts.js fixed the issue.
+The frontend was initially inaccessible through the custom domain. Investigation showed that the bucket was private as intended, but the real problem was that there were no frontend objects uploaded for CloudFront to fetch. Uploading `index.html` and `scripts.js` fixed the issue.
 
-5. Terraform resource labels were confused with actual AWS names
+### 5. Terraform resource labels were confused with actual AWS names
 
-The Terraform resource label for the S3 bucket was not the same as the deployed AWS bucket name. I verified the real value came from frontend_bucket_name and documented that distinction to make troubleshooting clearer.
+The Terraform resource label for the S3 bucket was not the same as the deployed AWS bucket name. I verified the real value came from `frontend_bucket_name` and documented that distinction to make troubleshooting clearer.
 
-6. Too many variables made the Terraform harder to reason about
+### 6. Too many variables made the Terraform harder to reason about
 
-As the project grew, some variables added indirection without improving flexibility. I simplified the configuration by inlining fixed values and keeping only genuinely useful inputs such as aws_region, students_table_name, and default_root_object.
+As the project grew, some variables added indirection without improving flexibility. I simplified the configuration by inlining fixed values and keeping only genuinely useful inputs such as `aws_region`, `students_table_name`, and `default_root_object`.
 
-7. The local frontend script was not identical to the deployed one
+### 7. The local frontend script was not identical to the deployed one
 
-The repository’s local scripts.js contained a placeholder API URL. The deployed version is generated from a Terraform template so it receives the real API endpoint at deploy time. That kept the source code readable while ensuring the live application points to the correct backend URL.
+The repository’s local `scripts.js` contained a placeholder API URL. The deployed version is generated from a Terraform template so it receives the real API endpoint at deploy time. That kept the source code readable while ensuring the live application points to the correct backend URL.
 
-8. CloudFront serves the frontend, not the API
+### 8. CloudFront serves the frontend, not the API
 
 Part of documenting the solution correctly was clarifying that CloudFront is only in front of the static frontend. API requests go from the browser straight to API Gateway. Making that boundary explicit improved both troubleshooting and documentation.
 
-What I Learned
+## What I Learned
 
 This project reinforced several practical cloud engineering lessons:
 
-private S3 + CloudFront + OAC is a cleaner secured frontend pattern than public S3 website hosting
-API Gateway HTTP API is a better fit than REST API for small Lambda-backed applications
-Terraform should derive values like the live API URL from created resources rather than rely on manual copy-paste
-even a simple serverless application still requires careful wiring across DNS, certificates, CDN behavior, API routing, IAM, and object delivery
-Future Improvements
+- private S3 + CloudFront + OAC is a cleaner secured frontend pattern than public S3 website hosting
+- API Gateway HTTP API is a better fit than REST API for small Lambda-backed applications
+- Terraform should derive values like the live API URL from created resources rather than rely on manual copy-paste
+- even a simple serverless application still requires careful wiring across DNS, certificates, CDN behavior, API routing, IAM, and object delivery
+
+## Future Improvements
 
 If I continue evolving the project, the next improvements would be:
 
-add Terraform outputs for the frontend and API URLs
-add CloudFront invalidation automation for frontend changes
-replace the current lightweight frontend with a more modern client
-add stronger validation and error handling in the Lambda functions
-add CI/CD for Terraform, Lambda packaging, and frontend deployment
+- add Terraform outputs for the frontend and API URLs
+- add CloudFront invalidation automation for frontend changes
+- replace the current lightweight frontend with a more modern client
+- add stronger validation and error handling in the Lambda functions
+- add CI/CD for Terraform, Lambda packaging, and frontend deployment

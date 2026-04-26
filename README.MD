@@ -102,6 +102,7 @@ infra/
     scripts.js.tftpl
   variables.tf
   waf.tf
+```
 
 The application code lives separately from the Terraform code. The infra/ folder provisions the AWS infrastructure, while the application folder contains the Lambda source files and frontend assets.
 

@@ -2,216 +2,232 @@
 
 ## Overview
 
-A rapidly growing private training institution with **8,000+ active students** and thousands of new enrollments each year was still managing student records through shared Excel spreadsheets. As the school expanded across departments and administrative teams, that manual process became a serious operational bottleneck. Staff were dealing with duplicate entries, overwritten records, version conflicts, and slow searches whenever they needed to retrieve student information. The client needed a more structured and scalable solution that could support continued growth without introducing the cost and maintenance burden of traditional servers.
+A fast-growing private educational institution became my client at a point when its student records workflow was no longer keeping up with operational growth. The school had expanded to **12,000+ active students**, with **800 to 1,000 new enrollments per intake cycle**, while administrative teams across admissions, records, and student support were still relying heavily on shared Excel spreadsheets.
 
-To solve that, I designed and deployed a **serverless student management system on AWS**. The application allows staff to submit student details through a browser and retrieve stored student records through a simple web interface. The solution uses **Amazon S3, CloudFront, AWS WAF, ACM, Route 53, API Gateway, Lambda, DynamoDB, and Terraform** to deliver a low-maintenance, production-minded cloud architecture.
+That process had become increasingly difficult to manage. Multiple spreadsheet copies existed across teams, records could be overwritten or duplicated, and student lookups were getting slower as files grew larger and more fragmented. The client needed a more structured and scalable way to store and retrieve student records, but they did not want the overhead of managing traditional servers or a heavier infrastructure stack than the use case required.
 
----
-
-## Real-World Scenario
-
-The client is a fast-growing educational institution with **8,000+ students already enrolled** and a projected path toward **10,000+ student records** as intake continues to increase. Despite that growth, student data was still being managed in spreadsheets shared among administrative staff.
-
-That created several recurring problems:
-
-- Multiple versions of the same spreadsheet were circulating across teams
-- Staff occasionally overwrote or deleted records by mistake
-- Looking up student records became slower as the files grew into the thousands
-- There was no centralized backend for secure and structured record management
-- The client wanted to modernize operations without paying for always-on servers or maintaining traditional infrastructure
-
-They needed a solution that was:
-
-- simple for staff to use
-- inexpensive to run
-- easy to scale as the student population grows
-- more secure and maintainable than spreadsheet-based workflows
-
-This project was built to meet that need with a serverless AWS design.
+To solve that, I designed and deployed a **serverless student management system on AWS**, provisioned with **Terraform**. The platform gives staff a browser-based interface to submit and retrieve student records while keeping the backend lightweight, scalable, and easier to maintain.
 
 ---
 
-## Project Goal
+## What This Project Does
 
-Build a secure, low-cost student management system that can:
+The application supports two core operations:
 
-- save student details from a browser form
-- retrieve stored student records
-- avoid server management overhead
-- use infrastructure as code for reproducible deployment
+- Insert student data
+- Retrieve stored student records
 
-The final design provisions the infrastructure with Terraform and separates the application into a static frontend and a serverless backend.
+The frontend is delivered securely through **CloudFront**, backed by a **private S3 origin**. The backend uses **API Gateway**, **Lambda**, and **DynamoDB** to handle student record operations.
 
 ---
 
-## Architecture
+## Architecture Summary
 
-The deployed solution uses the following AWS services:
+This project uses the following AWS services:
 
-- **Amazon S3** for static frontend hosting
-- **Amazon CloudFront** for secure frontend delivery over HTTPS
-- **AWS WAF** for basic edge protection
-- **Amazon Route 53** for DNS
-- **AWS Certificate Manager (ACM)** for TLS
-- **Amazon API Gateway HTTP API** for backend endpoints
-- **AWS Lambda** for business logic
-- **Amazon DynamoDB** for student record storage
-- **Terraform** for infrastructure provisioning and wiring
+- **Route 53** for DNS
+- **CloudFront** as the public frontend delivery layer
+- **WAF** for request inspection at the edge
+- **ACM** for TLS certificates
+- **S3** as a **private origin** for frontend assets
+- **API Gateway HTTP API** for backend endpoints
+- **Lambda** for application logic
+- **DynamoDB** for student record storage
+- **IAM** for service permissions
+- **Terraform** for infrastructure provisioning
 
-### Request Flow
+### Key design point
 
-1. A user visits the frontend through the custom domain.
-2. Route 53 resolves the domain to CloudFront.
-3. CloudFront uses ACM for TLS and WAF for edge-layer protection.
-4. CloudFront serves the frontend from a private S3 bucket using Origin Access Control.
-5. The frontend JavaScript calls API Gateway directly.
-6. API Gateway invokes Lambda functions for read/write operations.
-7. Lambda reads from or writes to the DynamoDB `studentData` table.
+**S3 is not used as a public website bucket.**
 
-One important design detail is that **CloudFront serves only the frontend**. The browser calls **API Gateway directly** for student data operations.
+Instead:
+
+- **CloudFront is the public front door**
+- **S3 stores the frontend files privately**
+- **Only CloudFront can read from the bucket**
+- **The browser calls API Gateway directly for data operations**
+
+### Request paths
+
+**Frontend delivery path**  
+User → Route 53 → CloudFront → private S3
+
+**Application data path**  
+User → API Gateway → Lambda → DynamoDB
 
 ---
 
 ## Architecture Diagram
 
-![AWS Architecture Diagram](aws-architecture-drawio-style.png)
+![AWS Architecture Diagram](serverless_student_management_system_architecture.png)
+
+**Caption:** High-level architecture of the serverless student management platform, showing the frontend delivery path through Route 53, CloudFront, and a private S3 origin, and the backend data path through API Gateway, Lambda, and DynamoDB.
 
 ---
 
-## Repository Structure
+## Project Structure
 
 ```text
-AWS-SERVERLESS-DEPLOYMENT-main/
-  getStudents.py
-  insertStudentData.py
-  index.html
-  scripts.js
-
+project-root/
+├── AWS-SERVERLESS-DEPLOYMENT-main/
+│   ├── getStudents.py
+│   ├── insertStudentData.py
+│   ├── index.html
+│   └── scripts.js
+│
+└── infra/
+    ├── acm.tf
+    ├── api.tf
+    ├── cloudfront.tf
+    ├── dynamodb.tf
+    ├── iam.tf
+    ├── lambda.tf
+    ├── providers.tf
+    ├── route53.tf
+    ├── s3.tf
+    ├── terraform.tfvars
+    ├── variables.tf
+    ├── waf.tf
+    └── templates/
+        └── scripts.js.tftpl
+Terraform layout by responsibility
 infra/
-  acm.tf
-  api.tf
-  cloudfront.tf
-  dynamodb.tf
-  iam.tf
-  lambda.tf
-  providers.tf
-  route53.tf
-  s3.tf
-  terraform.tfvars
-  templates/
-    scripts.js.tftpl
-  variables.tf
-  waf.tf
-```
+├── providers.tf      # provider configuration
+├── variables.tf      # input variables
+├── terraform.tfvars  # deployment values
+├── route53.tf        # hosted zone lookup and DNS records
+├── acm.tf            # certificate request and DNS validation
+├── s3.tf             # private frontend bucket and object uploads
+├── cloudfront.tf     # OAC, distribution, bucket policy
+├── waf.tf            # WAF web ACL
+├── api.tf            # API Gateway HTTP API, routes, stage
+├── iam.tf            # IAM role, policies, Lambda permissions
+├── lambda.tf         # Lambda functions and environment variables
+├── dynamodb.tf       # student data table
+└── templates/
+    └── scripts.js.tftpl
+How the System Works
+Frontend flow
+User visits the custom domain
+Route 53 resolves the domain to CloudFront
+CloudFront terminates HTTPS using ACM
+WAF inspects the request
+CloudFront serves index.html and scripts.js
+If needed, CloudFront fetches those files from the private S3 bucket using Origin Access Control
+Backend flow
+The deployed frontend script contains the live API Gateway URL
+The browser sends POST /students to save student data
+API Gateway invokes the insert Lambda function
+Lambda writes the record to DynamoDB
+The browser sends GET /students to retrieve records
+API Gateway invokes the read Lambda function
+Lambda fetches records from DynamoDB and returns them to the browser
+Important note
 
-The application code lives separately from the Terraform code. The `infra/` folder provisions the AWS infrastructure, while the application folder contains the Lambda source files and frontend assets.
+CloudFront does not proxy the API in this project.
+It serves only the static frontend. The browser talks to API Gateway directly for student data operations.
 
-## What the Application Does
+Why I Chose This Architecture
 
-The application supports two core actions:
+The client needed a solution that was:
 
-- Insert student data
-- Retrieve student records
+easy for staff to use
+lighter than a traditional server-based application
+scalable enough for continued enrollment growth
+more structured and reliable than spreadsheet-based workflows
 
-The frontend provides a simple form and table-based interface. On deployment, Terraform uploads the frontend files to S3 and injects the live API Gateway URL into the deployed JavaScript so the application points to the correct backend endpoint automatically.
+A serverless design fit that need well.
 
-## Backend Logic
+Why these services
+S3 stores static frontend files without needing a web server
+CloudFront provides secure delivery, caching, and a public layer in front of a private bucket
+WAF adds basic protection at the edge
+Route 53 + ACM provide custom-domain access over HTTPS
+API Gateway HTTP API is a simple fit for a small Lambda-backed API
+Lambda removes the need for an always-on backend server
+DynamoDB provides a managed data store without database server administration
+Terraform makes the infrastructure reproducible and easier to maintain
+Example Infrastructure Snippets
+CloudFront with private S3 origin
+resource "aws_cloudfront_origin_access_control" "oac" {
+  name                              = "student-management-oac"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
 
-Two Lambda functions power the backend:
+resource "aws_cloudfront_distribution" "frontend" {
+  origin {
+    domain_name              = aws_s3_bucket.student_frontend.bucket_regional_domain_name
+    origin_access_control_id = aws_cloudfront_origin_access_control.oac.id
+    origin_id                = "studentFrontendS3"
+  }
 
-- `getStudents.py` scans the DynamoDB table and returns stored records
-- `insertStudentData.py` accepts a request body and stores a student record
+  default_root_object = "index.html"
+}
+API routes
+resource "aws_apigatewayv2_api" "students_api" {
+  name          = "students-api"
+  protocol_type = "HTTP"
+}
 
-Both Lambda functions use the same IAM execution role with permissions scoped to DynamoDB access and CloudWatch logging.
+resource "aws_apigatewayv2_route" "get_students" {
+  api_id    = aws_apigatewayv2_api.students_api.id
+  route_key = "GET /students"
+  target    = "integrations/${aws_apigatewayv2_integration.get_students.id}"
+}
 
-## Security and Delivery Design
+resource "aws_apigatewayv2_route" "insert_student" {
+  api_id    = aws_apigatewayv2_api.students_api.id
+  route_key = "POST /students"
+  target    = "integrations/${aws_apigatewayv2_integration.insert_student.id}"
+}
+Key Issues Encountered
+1. Lambda zip artifacts were missing
 
-I wanted the frontend bucket to remain private rather than exposing it as a public S3 website. To achieve that:
+The Lambda resources expected zipped deployment packages, but initially only the Python source files existed. Terraform failed because the referenced zip files did not exist yet.
 
-- S3 public access is blocked
-- CloudFront accesses S3 through Origin Access Control (OAC)
-- the bucket policy allows only the CloudFront distribution to read the frontend objects
+Fix: created the deployment zip artifacts alongside the .py source files.
 
-For public access and delivery:
+2. CloudFront returned AccessDenied
 
-- Route 53 provides DNS records
-- ACM issues and validates the TLS certificate
-- CloudFront handles HTTPS termination
-- WAF applies the AWS managed common rule set at the edge
+At first, the custom domain returned an XML AccessDenied response. The security model itself was correct: the bucket was private, public access was blocked, and website hosting was off. The actual issue was that the bucket had no frontend objects yet.
 
-This results in a cleaner and more production-oriented setup than a public website bucket.
+Fix: uploaded index.html and scripts.js through Terraform so CloudFront had content to serve.
 
-## Why This Architecture Made Sense
+3. CORS had to be handled correctly
 
-This architecture fit the client’s needs because it removed the operational burden of:
+The frontend was served through CloudFront, but the browser called API Gateway directly. That meant cross-origin requests had to be allowed properly.
 
-- provisioning EC2 instances
-- patching servers
-- maintaining a traditional backend host
-- running a self-managed relational database for a small internal application
+Fix: configured the API to return the correct CORS headers for browser-based requests.
 
-Instead, the application uses managed services that are easier to scale, automate, and secure for a use case like student registration and record lookup.
+4. API Gateway needed explicit Lambda invoke permissions
 
-## Deployment Notes
+Even with routes and integrations defined, API Gateway could not invoke Lambda unless the correct permission resources were present.
 
-A few practical deployment details mattered in this implementation:
+Fix: added explicit Lambda permissions for apigateway.amazonaws.com.
 
-- Lambda functions are deployed as zip artifacts
-- frontend files must be uploaded to S3 for CloudFront to serve them
-- the frontend needs the real API Gateway invoke URL after deployment
-- the actual S3 bucket name comes from `frontend_bucket_name`, not the Terraform resource label
+5. The deployed frontend needed the live API URL
 
-One issue encountered during deployment was a CloudFront `AccessDenied` response. The root cause was not simply permissions; the S3 bucket was private and also empty, so CloudFront had no `index.html` or `scripts.js` object to serve. Uploading the frontend assets through Terraform resolved that issue.
+A placeholder API endpoint in the frontend would cause the site to load while data operations failed.
 
-## Challenges I Encountered and How I Resolved Them
+Fix: rendered the deployed scripts.js with the live API Gateway URL through Terraform.
 
-### 1. Lambda zip artifacts were missing
+What I Learned
 
-Terraform expected deployment packages for both Lambda functions, but only the Python source files existed initially. The fix was to create zip packages alongside the `.py` files and use those as the Lambda deployment artifacts while keeping the source code in the repository.
+This project reinforced a few practical lessons:
 
-### 2. The initial API design was heavier than needed
+A private S3 origin behind CloudFront is cleaner than using a public website bucket
+API Gateway HTTP API is often a better fit than a heavier REST setup for small Lambda-backed applications
+Terraform should generate deployment-time values like the live API URL instead of relying on manual edits
+Visible errors like AccessDenied can hide a deeper origin-content issue
+Even a relatively small serverless system still requires careful thinking across DNS, TLS, IAM, routing, packaging, and service-to-service permissions
+Possible Improvements
 
-The project originally leaned toward a more verbose REST-style API structure. After reviewing the actual use case, I simplified the backend to API Gateway HTTP API, which reduced complexity and made routing and CORS management more straightforward for this two-route application.
+Next improvements I would make:
 
-### 3. There was confusion about where the API endpoint belonged
-
-At first, it seemed like the API URL might need to be manually managed in multiple places. Reviewing the request flow made it clear that the public API endpoint belongs to the frontend, while Lambda only needs internal values like the DynamoDB table name. I resolved this by having Terraform inject the real API URL into the deployed frontend script.
-
-### 4. CloudFront returned AccessDenied
-
-The frontend was initially inaccessible through the custom domain. Investigation showed that the bucket was private as intended, but the real problem was that there were no frontend objects uploaded for CloudFront to fetch. Uploading `index.html` and `scripts.js` fixed the issue.
-
-### 5. Terraform resource labels were confused with actual AWS names
-
-The Terraform resource label for the S3 bucket was not the same as the deployed AWS bucket name. I verified the real value came from `frontend_bucket_name` and documented that distinction to make troubleshooting clearer.
-
-### 6. Too many variables made the Terraform harder to reason about
-
-As the project grew, some variables added indirection without improving flexibility. I simplified the configuration by inlining fixed values and keeping only genuinely useful inputs such as `aws_region`, `students_table_name`, and `default_root_object`.
-
-### 7. The local frontend script was not identical to the deployed one
-
-The repository’s local `scripts.js` contained a placeholder API URL. The deployed version is generated from a Terraform template so it receives the real API endpoint at deploy time. That kept the source code readable while ensuring the live application points to the correct backend URL.
-
-### 8. CloudFront serves the frontend, not the API
-
-Part of documenting the solution correctly was clarifying that CloudFront is only in front of the static frontend. API requests go from the browser straight to API Gateway. Making that boundary explicit improved both troubleshooting and documentation.
-
-## What I Learned
-
-This project reinforced several practical cloud engineering lessons:
-
-- private S3 + CloudFront + OAC is a cleaner secured frontend pattern than public S3 website hosting
-- API Gateway HTTP API is a better fit than REST API for small Lambda-backed applications
-- Terraform should derive values like the live API URL from created resources rather than rely on manual copy-paste
-- even a simple serverless application still requires careful wiring across DNS, certificates, CDN behavior, API routing, IAM, and object delivery
-
-## Future Improvements
-
-If I continue evolving the project, the next improvements would be:
-
-- add Terraform outputs for the frontend and API URLs
-- add CloudFront invalidation automation for frontend changes
-- replace the current lightweight frontend with a more modern client
-- add stronger validation and error handling in the Lambda functions
-- add CI/CD for Terraform, Lambda packaging, and frontend deployment
+add clearer Terraform outputs for frontend and API URLs
+automate CloudFront invalidations for frontend updates
+add stronger validation and error handling in the Lambda functions
+add CI/CD for Terraform and packaging
+improve student record retrieval patterns as the application grows

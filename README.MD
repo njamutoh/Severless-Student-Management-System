@@ -125,138 +125,157 @@ infra/
     └── scripts.js.tftpl
 ```
 
-Organizing Terraform by responsibility kept the infrastructure more readable and made it easier to track service-to-service relationships during deployment.
+## How the System Works
 
-How the System Works
-Frontend flow
-User visits the custom domain
-Route 53 resolves the domain to CloudFront
-CloudFront terminates HTTPS using ACM
-WAF inspects the request
-CloudFront serves index.html and scripts.js
-If needed, CloudFront fetches those files from the private S3 bucket using Origin Access Control
-Backend flow
-The deployed frontend script contains the live API Gateway URL
-The browser sends POST /students to save student data
-API Gateway invokes the insert Lambda function
-Lambda writes the record to DynamoDB
-The browser sends GET /students to retrieve records
-API Gateway invokes the read Lambda function
-Lambda fetches records from DynamoDB and returns them to the browser
-Important note
+### Frontend flow
 
-CloudFront does not proxy the API in this project.
-It serves only the static frontend. The browser talks to API Gateway directly for student data operations.
+1. User visits the custom domain.
+2. Route 53 resolves the domain to CloudFront.
+3. CloudFront terminates HTTPS using ACM.
+4. WAF inspects the request.
+5. CloudFront serves `index.html` and `scripts.js`.
+6. If needed, CloudFront fetches those files from the private S3 bucket using **Origin Access Control (OAC)**.
+
+### Backend flow
+
+1. The deployed frontend script contains the live API Gateway URL.
+2. The browser sends `POST /students` to save student data.
+3. API Gateway invokes the insert Lambda function.
+4. Lambda writes the record to DynamoDB.
+5. The browser sends `GET /students` to retrieve records.
+6. API Gateway invokes the read Lambda function.
+7. Lambda fetches records from DynamoDB and returns them to the browser.
+
+### Important note
+
+**CloudFront does not proxy the API in this project.**  
+It serves only the static frontend. The browser talks to **API Gateway directly** for student data operations.
 
 That was an important architectural boundary to keep clear, especially when troubleshooting frontend behavior versus backend request handling.
 
-Why I Chose This Architecture
+---
+
+## Why I Chose This Architecture
 
 The client needed a solution that was:
 
-easy for staff to use
-lighter than a traditional server-based application
-scalable enough for continued enrollment growth
-more structured and reliable than spreadsheet-based workflows
+- easy for staff to use
+- lighter than a traditional server-based application
+- scalable enough for continued enrollment growth
+- more structured and reliable than spreadsheet-based workflows
 
 A serverless design fit that need well because it reduced operational overhead while still providing a clean application experience.
 
-Why these services
-S3 stores static frontend files without needing a web server
-CloudFront provides secure delivery, caching, and a public layer in front of a private bucket
-WAF adds basic protection at the edge
-Route 53 + ACM provide custom-domain access over HTTPS
-API Gateway HTTP API is a simple fit for a small Lambda-backed API
-Lambda removes the need for an always-on backend server
-DynamoDB provides a managed data store without database server administration
-Terraform makes the infrastructure reproducible and easier to maintain
+### Why these services
+
+- **S3** stores static frontend files without needing a web server.
+- **CloudFront** provides secure delivery, caching, and a public layer in front of a private bucket.
+- **WAF** adds basic protection at the edge.
+- **Route 53 + ACM** provide custom-domain access over HTTPS.
+- **API Gateway HTTP API** is a simple fit for a small Lambda-backed API.
+- **Lambda** removes the need for an always-on backend server.
+- **DynamoDB** provides a managed data store without database server administration.
+- **Terraform** makes the infrastructure reproducible and easier to maintain.
 
 This combination gave the client a system that was modern enough to replace spreadsheet-based operations, while still being appropriately sized for the real scope of the problem.
 
-How the Services Work Together
+---
 
-One of the cleanest ways to understand the system is to separate provisioning-time communication from runtime communication.
+## How the Services Work Together
 
-Provisioning-time flow
+One of the cleanest ways to understand the system is to separate **provisioning-time communication** from **runtime communication**.
+
+### Provisioning-time flow
 
 At apply time, Terraform coordinated the system in roughly this order:
 
-Requested the ACM certificate
-Created the Route 53 validation records
-Waited for certificate validation
-Created the private S3 bucket
-Created the CloudFront distribution
-Attached ACM and WAF to CloudFront
-Created Origin Access Control
-Created the bucket policy allowing only that distribution to read objects
-Created the HTTP API, routes, integrations, and stage
-Created the Lambda functions, IAM role, and permissions
-Created the DynamoDB table
-Generated the deployed frontend script with the live API URL
-Uploaded index.html and scripts.js to S3
+1. Requested the ACM certificate.
+2. Created the Route 53 validation records.
+3. Waited for certificate validation.
+4. Created the private S3 bucket.
+5. Created the CloudFront distribution.
+6. Attached ACM and WAF to CloudFront.
+7. Created Origin Access Control.
+8. Created the bucket policy allowing only that distribution to read objects.
+9. Created the HTTP API, routes, integrations, and stage.
+10. Created the Lambda functions, IAM role, and permissions.
+11. Created the DynamoDB table.
+12. Generated the deployed frontend script with the live API URL.
+13. Uploaded `index.html` and `scripts.js` to S3.
 
 Terraform is effectively the coordinator here. The AWS services are not discovering each other automatically. Terraform wires them together by reference and ensures the dependencies are created in the right order.
 
-Runtime communication summary
+### Runtime communication summary
 
-Static path:
+**Static path:**
 
 User → Route 53 → CloudFront → private S3
 
-Application data path:
+**Application data path:**
 
 User → API Gateway → Lambda → DynamoDB
 
-Security and control layers:
+### Security and control layers
 
-Route 53 maps the domain to CloudFront
-ACM gives CloudFront TLS capability
-WAF filters requests at the CloudFront layer
-OAC lets CloudFront fetch from private S3
-IAM authorizes Lambda and API interactions
-Frontend and Backend Responsibilities
+- Route 53 maps the domain to CloudFront.
+- ACM gives CloudFront TLS capability.
+- WAF filters requests at the CloudFront layer.
+- OAC lets CloudFront fetch from private S3.
+- IAM authorizes Lambda and API interactions.
+
+---
+
+## Frontend and Backend Responsibilities
 
 From the user’s perspective, the application supports two core actions:
 
-insert student data
-retrieve student records
-Frontend responsibilities
+- insert student data
+- retrieve student records
+
+### Frontend responsibilities
 
 The frontend provides:
 
-a form for entering student data
-the ability to trigger record retrieval
-a browser-based interface for viewing the returned data
+- a form for entering student data
+- the ability to trigger record retrieval
+- a browser-based interface for viewing the returned data
 
-The deployed frontend does not rely on a hardcoded API placeholder. Instead, Terraform renders the deployed scripts.js file with the real API Gateway URL so the hosted frontend points to the correct backend automatically.
+The deployed frontend does not rely on a hardcoded API placeholder. Instead, Terraform renders the deployed `scripts.js` file with the real API Gateway URL so the hosted frontend points to the correct backend automatically.
 
-Backend responsibilities
+### Backend responsibilities
 
 The backend logic is handled by two Lambda functions:
 
-getStudents.py scans the DynamoDB table and returns records
-insertStudentData.py accepts the request body and stores a student record
+- `getStudents.py` scans the DynamoDB table and returns records
+- `insertStudentData.py` accepts the request body and stores a student record
 
 Both functions use the same IAM execution role, with permissions scoped to CloudWatch logging and DynamoDB access. This kept the compute layer small, stateless, and focused only on request handling and data interaction.
 
-Security and Delivery Design
+---
+
+## Security and Delivery Design
 
 I wanted the frontend delivery path to follow a more production-minded pattern than exposing a public bucket.
 
 So the design used:
 
-blocked public access on S3
-no S3 website hosting
-CloudFront Origin Access Control
-a bucket policy allowing only that CloudFront distribution to read objects
-TLS termination at CloudFront
-WAF at the edge
-Route 53 and ACM for domain and certificate handling
+- blocked public access on S3
+- no S3 website hosting
+- CloudFront Origin Access Control
+- a bucket policy allowing only that CloudFront distribution to read objects
+- TLS termination at CloudFront
+- WAF at the edge
+- Route 53 and ACM for domain and certificate handling
 
 That approach made the frontend delivery path cleaner and better controlled. It also meant the S3 bucket could remain private while still serving the application through CloudFront.
 
-Example Infrastructure Snippets
-CloudFront with private S3 origin
+---
+
+## Example Infrastructure Snippets
+
+### CloudFront with private S3 origin
+
+```hcl
 resource "aws_cloudfront_origin_access_control" "oac" {
   name                              = "student-management-oac"
   origin_access_control_origin_type = "s3"
@@ -330,11 +349,11 @@ What I Learned
 
 This project reinforced a few practical lessons:
 
-A private S3 origin behind CloudFront is cleaner than using a public website bucket
-API Gateway HTTP API is often a better fit than a heavier REST setup for small Lambda-backed applications
-Terraform should generate deployment-time values like the live API URL instead of relying on manual edits
-Visible errors like AccessDenied can hide a deeper origin-content issue
-Even a relatively small serverless system still requires careful thinking across DNS, TLS, IAM, routing, packaging, and service-to-service permissions
+A private S3 origin behind CloudFront is cleaner than using a public website bucket.
+API Gateway HTTP API is often a better fit than a heavier REST setup for small Lambda-backed applications.
+Terraform should generate deployment-time values like the live API URL instead of relying on manual edits.
+Visible errors like AccessDenied can hide a deeper origin-content issue.
+Even a relatively small serverless system still requires careful thinking across DNS, TLS, IAM, routing, packaging, and service-to-service permissions.
 
 It also reinforced how important it is to understand not just what each AWS service does individually, but how they interact once the system is actually live.
 

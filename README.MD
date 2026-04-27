@@ -313,59 +313,64 @@ resource "aws_apigatewayv2_route" "insert_student" {
 
 These snippets reflect the two most important architectural relationships in the project: CloudFront serving the frontend from a private S3 origin, and API Gateway routing browser requests to Lambda-backed backend operations.
 
-Key Issues Encountered
-1. Lambda zip artifacts were missing
+## Key Issues Encountered
+
+### 1. Lambda zip artifacts were missing
 
 The Lambda resources expected zipped deployment packages, but initially only the Python source files existed. Terraform failed because the referenced zip files did not exist yet.
 
-Fix: created the deployment zip artifacts alongside the .py source files.
+**Fix:** Created the deployment zip artifacts alongside the `.py` source files.
 
-2. CloudFront returned AccessDenied
+### 2. CloudFront returned `AccessDenied`
 
-At first, the custom domain returned an XML AccessDenied response. The security model itself was correct: the bucket was private, public access was blocked, and website hosting was off. The actual issue was that the bucket had no frontend objects yet.
+At first, the custom domain returned an XML `AccessDenied` response. The security model itself was correct: the bucket was private, public access was blocked, and website hosting was off. The actual issue was that the bucket had no frontend objects yet.
 
-Fix: uploaded index.html and scripts.js through Terraform so CloudFront had content to serve.
+**Fix:** Uploaded `index.html` and `scripts.js` through Terraform so CloudFront had content to serve.
 
-3. CORS had to be handled correctly
+### 3. CORS had to be handled correctly
 
 The frontend was served through CloudFront, but the browser called API Gateway directly. That meant cross-origin requests had to be allowed properly.
 
-Fix: configured the API to return the correct CORS headers for browser-based requests.
+**Fix:** Configured the API to return the correct CORS headers for browser-based requests.
 
-4. API Gateway needed explicit Lambda invoke permissions
+### 4. API Gateway needed explicit Lambda invoke permissions
 
 Even with routes and integrations defined, API Gateway could not invoke Lambda unless the correct permission resources were present.
 
-Fix: added explicit Lambda permissions for apigateway.amazonaws.com.
+**Fix:** Added explicit Lambda permissions for `apigateway.amazonaws.com`.
 
-5. The deployed frontend needed the live API URL
+### 5. The deployed frontend needed the live API URL
 
 A placeholder API endpoint in the frontend would cause the site to load while data operations failed.
 
-Fix: rendered the deployed scripts.js with the live API Gateway URL through Terraform.
+**Fix:** Rendered the deployed `scripts.js` with the live API Gateway URL through Terraform.
 
 These issues were valuable because they moved the project beyond a basic happy-path deployment and forced careful thinking about packaging, permissions, browser behavior, and service boundaries.
 
-What I Learned
+---
+
+## What I Learned
 
 This project reinforced a few practical lessons:
 
-A private S3 origin behind CloudFront is cleaner than using a public website bucket.
-API Gateway HTTP API is often a better fit than a heavier REST setup for small Lambda-backed applications.
-Terraform should generate deployment-time values like the live API URL instead of relying on manual edits.
-Visible errors like AccessDenied can hide a deeper origin-content issue.
-Even a relatively small serverless system still requires careful thinking across DNS, TLS, IAM, routing, packaging, and service-to-service permissions.
+- A private S3 origin behind CloudFront is cleaner than using a public website bucket.
+- API Gateway HTTP API is often a better fit than a heavier REST setup for small Lambda-backed applications.
+- Terraform should generate deployment-time values like the live API URL instead of relying on manual edits.
+- Visible errors like `AccessDenied` can hide a deeper origin-content issue.
+- Even a relatively small serverless system still requires careful thinking across DNS, TLS, IAM, routing, packaging, and service-to-service permissions.
 
 It also reinforced how important it is to understand not just what each AWS service does individually, but how they interact once the system is actually live.
 
-Possible Improvements
+---
+
+## Possible Improvements
 
 Next improvements I would make:
 
-add clearer Terraform outputs for frontend and API URLs
-automate CloudFront invalidations for frontend updates
-add stronger validation and error handling in the Lambda functions
-add CI/CD for Terraform and packaging
-improve student record retrieval patterns as the application grows
+- add clearer Terraform outputs for frontend and API URLs
+- automate CloudFront invalidations for frontend updates
+- add stronger validation and error handling in the Lambda functions
+- add CI/CD for Terraform and packaging
+- improve student record retrieval patterns as the application grows
 
-These would make the project more robust operationally and closer to a repeatable production workflow.
+These would make the project more robust operationally and closer to a repeatable production workflow.w.

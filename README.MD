@@ -309,6 +309,7 @@ resource "aws_apigatewayv2_route" "insert_student" {
   route_key = "POST /students"
   target    = "integrations/${aws_apigatewayv2_integration.insert_student.id}"
 }
+```
 
 These snippets reflect the two most important architectural relationships in the project: CloudFront serving the frontend from a private S3 origin, and API Gateway routing browser requests to Lambda-backed backend operations.
 

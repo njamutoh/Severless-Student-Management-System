@@ -106,6 +106,8 @@ infra/ contains the Terraform configuration that provisions and wires the AWS se
 This separation made it easier to maintain the codebase, troubleshoot issues, and explain what belonged to the application versus the infrastructure.
 
 Terraform layout by responsibility
+
+```text
 infra/
 ├── providers.tf      # provider configuration
 ├── variables.tf      # input variables
@@ -121,6 +123,7 @@ infra/
 ├── dynamodb.tf       # student data table
 └── templates/
     └── scripts.js.tftpl
+```
 
 Organizing Terraform by responsibility kept the infrastructure more readable and made it easier to track service-to-service relationships during deployment.
 

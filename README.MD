@@ -65,7 +65,7 @@ This separation made the stack easier to secure, easier to reason about, and eas
 
 ## Architecture Diagram
 
-![AWS Architecture Diagram](serverless_student_management_system_architecture.png)
+![AWS Architecture Diagram](main%20image.png)
 
 **Caption:** High-level architecture of the serverless student management platform, showing the frontend delivery path through Route 53, CloudFront, and a private S3 origin, and the backend data path through API Gateway, Lambda, and DynamoDB.
 

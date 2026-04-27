@@ -96,6 +96,7 @@ project-root/
     ├── waf.tf
     └── templates/
         └── scripts.js.tftpl
+---
 
 The project is split into two major parts:
 
